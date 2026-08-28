@@ -1214,20 +1214,23 @@ export class CodexAcpClient {
             "unknown",
         ];
         const requestedCwd = request.cwd?.trim() ?? null;
+        const requestedCwds = uniqueStrings([
+            ...(requestedCwd ? [requestedCwd] : []),
+            ...(readMetaAdditionalRoots(request._meta) ?? []),
+        ]);
         const filterByCwd = (thread: Thread): boolean => {
-            if (!requestedCwd) return true;
-            if (isAbsolutePathLike(requestedCwd)) {
-                return arePathsEqual(thread.cwd, requestedCwd);
-            }
-            return arePathBasenamesEqual(thread.cwd, requestedCwd);
+            if (requestedCwds.length === 0) return true;
+            return requestedCwds.some(cwd => isAbsolutePathLike(cwd)
+                ? arePathsEqual(thread.cwd, cwd)
+                : arePathBasenamesEqual(thread.cwd, cwd));
         };
 
         const preferredProvider = this.getModelProvider();
         const modelProviders = preferredProvider ? [preferredProvider] : [];
         // The state DB answers in milliseconds. Without the flag, Codex scans and repairs every rollout file on
         // each call, which took about 4 s per page.
-        const appServerCwd = requestedCwd && isAbsolutePathLike(requestedCwd)
-            ? requestedCwd
+        const appServerCwds = requestedCwds.length > 0 && requestedCwds.every(isAbsolutePathLike)
+            ? requestedCwds
             : null;
         const listResponse = await this.codexClient.threadList({
             cursor: request.cursor ?? null,
@@ -1237,7 +1240,7 @@ export class CodexAcpClient {
             modelProviders: modelProviders,
             sourceKinds: sourceKinds,
             useStateDbOnly: true,
-            cwd: appServerCwd,
+            cwd: appServerCwds,
         });
 
         const mapThreadToSession = (thread: Thread) => ({
@@ -1248,14 +1251,14 @@ export class CodexAcpClient {
         });
 
         let sessions = listResponse.data.map(mapThreadToSession);
-        if (requestedCwd) {
+        if (requestedCwds.length > 0) {
             const filtered = listResponse.data
                 .filter(filterByCwd)
                 .map(mapThreadToSession);
-            if (filtered.length > 0 || isAbsolutePathLike(requestedCwd)) {
+            if (filtered.length > 0 || appServerCwds) {
                 sessions = filtered;
             } else {
-                logger.log("Ignoring non-absolute cwd filter for session/list", {cwd: requestedCwd});
+                logger.log("Ignoring non-absolute cwd filters for session/list", {cwds: requestedCwds});
             }
         }
 
