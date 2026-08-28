@@ -15,6 +15,9 @@
       "method": "thread/list",
       "params": {
         "cursor": null,
+        "limit": 100,
+        "sortKey": "updated_at",
+        "sortDirection": "desc",
         "modelProviders": [],
         "sourceKinds": [
           "cli",
@@ -22,7 +25,10 @@
           "appServer",
           "unknown"
         ],
-        "useStateDbOnly": true
+        "useStateDbOnly": true,
+        "cwd": [
+          "/workspace"
+        ]
       }
     }
   ]

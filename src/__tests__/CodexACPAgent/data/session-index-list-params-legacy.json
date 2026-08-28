@@ -1,6 +1,9 @@
 {
   "airWithoutSessionIndex": {
     "cursor": "cursor-1",
+    "limit": 100,
+    "sortKey": "updated_at",
+    "sortDirection": "desc",
     "modelProviders": [],
     "sourceKinds": [
       "cli",
@@ -8,10 +11,16 @@
       "appServer",
       "unknown"
     ],
-    "useStateDbOnly": true
+    "useStateDbOnly": true,
+    "cwd": [
+      "/repo/project"
+    ]
   },
   "plain": {
     "cursor": "cursor-1",
+    "limit": 100,
+    "sortKey": "updated_at",
+    "sortDirection": "desc",
     "modelProviders": [],
     "sourceKinds": [
       "cli",
@@ -19,6 +28,9 @@
       "appServer",
       "unknown"
     ],
-    "useStateDbOnly": true
+    "useStateDbOnly": true,
+    "cwd": [
+      "/repo/project"
+    ]
   }
 }
