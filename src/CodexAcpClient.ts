@@ -69,6 +69,7 @@ export type {SessionMetadata, SessionMetadataWithThread} from "./SessionMetadata
 export const CUSTOM_GATEWAY_PROVIDER_ID = "custom-gateway";
 export const OPENAI_PROVIDER_ID = "openai";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+const SESSION_LIST_LIMIT = 100;
 
 /**
  * The url-mode variant of the ACP `elicitation/create` request params.
@@ -1058,10 +1059,17 @@ export class CodexAcpClient {
 
         const preferredProvider = this.getModelProvider();
         const modelProviders = preferredProvider ? [preferredProvider] : [];
+        const appServerCwd = requestedCwd && isAbsolutePathLike(requestedCwd)
+            ? requestedCwd
+            : null;
         const listResponse = await this.codexClient.threadList({
             cursor: request.cursor ?? null,
+            limit: SESSION_LIST_LIMIT,
+            sortKey: "updated_at",
+            sortDirection: "desc",
             modelProviders: modelProviders,
             sourceKinds: sourceKinds,
+            cwd: appServerCwd,
         });
 
         const mapThreadToSession = (thread: Thread) => ({
@@ -1071,7 +1079,7 @@ export class CodexAcpClient {
             updatedAt: new Date(thread.updatedAt * 1000).toISOString(),
         });
 
-        if (listResponse.data.length === 0) {
+        if (listResponse.data.length === 0 && !appServerCwd) {
             const diagnostics = await this.runSessionListDiagnostics();
             logger.log("Session list diagnostics", diagnostics);
         }

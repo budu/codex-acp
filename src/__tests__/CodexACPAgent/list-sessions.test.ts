@@ -90,6 +90,11 @@ describe("CodexACPAgent - list sessions", () => {
         const response = await codexAcpAgent.listSessions(params);
 
         expect(codexAppServerClient.threadList).toHaveBeenCalledWith(expect.objectContaining({
+            cursor: null,
+            limit: 100,
+            sortKey: "updated_at",
+            sortDirection: "desc",
+            cwd: "/repo/project",
             sourceKinds: [
                 "cli",
                 "vscode",
@@ -101,6 +106,27 @@ describe("CodexACPAgent - list sessions", () => {
         await expect(JSON.stringify(response, null, 2)).toMatchFileSnapshot(
             "data/list-sessions.json"
         );
+    });
+
+    it("does not run global diagnostics for an empty cwd-scoped list", async () => {
+        const fixture = createCodexMockTestFixture();
+        const codexAcpAgent = fixture.getCodexAcpAgent();
+        const codexAcpClient = fixture.getCodexAcpClient();
+        const codexAppServerClient = fixture.getCodexAppServerClient();
+
+        codexAcpClient.authRequired = vi.fn().mockResolvedValue(false);
+        codexAppServerClient.threadList = vi.fn().mockResolvedValue({
+            data: [],
+            nextCursor: null,
+        });
+
+        const response = await codexAcpAgent.listSessions({
+            cwd: "/repo/empty-project",
+            cursor: null,
+        });
+
+        expect(response).toEqual({sessions: [], nextCursor: null});
+        expect(codexAppServerClient.threadList).toHaveBeenCalledTimes(1);
     });
 
     it("normalizes Windows cwd filters before comparing absolute paths", async () => {
@@ -172,6 +198,14 @@ describe("CodexACPAgent - list sessions", () => {
         });
 
         expect(basenameResponse.sessions.map(session => session.sessionId)).toEqual(["sess-win"]);
+        expect(codexAppServerClient.threadList).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({cwd: "d:/workspace/sample-project"}),
+        );
+        expect(codexAppServerClient.threadList).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({cwd: null}),
+        );
     });
 
     it("should prefer the explicit thread name as the session title", async () => {
