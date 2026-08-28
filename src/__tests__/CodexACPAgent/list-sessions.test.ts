@@ -90,6 +90,11 @@ describe("CodexACPAgent - list sessions", () => {
         const response = await codexAcpAgent.listSessions(params);
 
         expect(codexAppServerClient.threadList).toHaveBeenCalledWith(expect.objectContaining({
+            cursor: null,
+            limit: 100,
+            sortKey: "updated_at",
+            sortDirection: "desc",
+            cwd: "/repo/project",
             sourceKinds: [
                 "cli",
                 "vscode",
@@ -187,6 +192,14 @@ describe("CodexACPAgent - list sessions", () => {
         });
 
         expect(basenameResponse.sessions.map(session => session.sessionId)).toEqual(["sess-win"]);
+        expect(codexAppServerClient.threadList).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({cwd: "d:/workspace/sample-project"}),
+        );
+        expect(codexAppServerClient.threadList).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({cwd: null}),
+        );
     });
 
     it("should prefer the explicit thread name as the session title", async () => {

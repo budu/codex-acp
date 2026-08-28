@@ -96,6 +96,7 @@ type ResumedThread = {
 export const CUSTOM_GATEWAY_PROVIDER_ID = "custom-gateway";
 export const OPENAI_PROVIDER_ID = "openai";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+const SESSION_LIST_LIMIT = 100;
 
 /**
  * The url-mode variant of the ACP `elicitation/create` request params.
@@ -1225,11 +1226,18 @@ export class CodexAcpClient {
         const modelProviders = preferredProvider ? [preferredProvider] : [];
         // The state DB answers in milliseconds. Without the flag, Codex scans and repairs every rollout file on
         // each call, which took about 4 s per page.
+        const appServerCwd = requestedCwd && isAbsolutePathLike(requestedCwd)
+            ? requestedCwd
+            : null;
         const listResponse = await this.codexClient.threadList({
             cursor: request.cursor ?? null,
+            limit: SESSION_LIST_LIMIT,
+            sortKey: "updated_at",
+            sortDirection: "desc",
             modelProviders: modelProviders,
             sourceKinds: sourceKinds,
             useStateDbOnly: true,
+            cwd: appServerCwd,
         });
 
         const mapThreadToSession = (thread: Thread) => ({
