@@ -1049,18 +1049,21 @@ export class CodexAcpClient {
             "unknown",
         ];
         const requestedCwd = request.cwd?.trim() ?? null;
+        const requestedCwds = uniqueStrings([
+            ...(requestedCwd ? [requestedCwd] : []),
+            ...(readMetaAdditionalRoots(request._meta) ?? []),
+        ]);
         const filterByCwd = (thread: Thread): boolean => {
-            if (!requestedCwd) return true;
-            if (isAbsolutePathLike(requestedCwd)) {
-                return arePathsEqual(thread.cwd, requestedCwd);
-            }
-            return arePathBasenamesEqual(thread.cwd, requestedCwd);
+            if (requestedCwds.length === 0) return true;
+            return requestedCwds.some(cwd => isAbsolutePathLike(cwd)
+                ? arePathsEqual(thread.cwd, cwd)
+                : arePathBasenamesEqual(thread.cwd, cwd));
         };
 
         const preferredProvider = this.getModelProvider();
         const modelProviders = preferredProvider ? [preferredProvider] : [];
-        const appServerCwd = requestedCwd && isAbsolutePathLike(requestedCwd)
-            ? requestedCwd
+        const appServerCwds = requestedCwds.length > 0 && requestedCwds.every(isAbsolutePathLike)
+            ? requestedCwds
             : null;
         const listResponse = await this.codexClient.threadList({
             cursor: request.cursor ?? null,
@@ -1069,7 +1072,7 @@ export class CodexAcpClient {
             sortDirection: "desc",
             modelProviders: modelProviders,
             sourceKinds: sourceKinds,
-            cwd: appServerCwd,
+            cwd: appServerCwds,
         });
 
         const mapThreadToSession = (thread: Thread) => ({
@@ -1079,20 +1082,20 @@ export class CodexAcpClient {
             updatedAt: new Date(thread.updatedAt * 1000).toISOString(),
         });
 
-        if (listResponse.data.length === 0 && !appServerCwd) {
+        if (listResponse.data.length === 0 && !appServerCwds) {
             const diagnostics = await this.runSessionListDiagnostics();
             logger.log("Session list diagnostics", diagnostics);
         }
 
         let sessions = listResponse.data.map(mapThreadToSession);
-        if (requestedCwd) {
+        if (requestedCwds.length > 0) {
             const filtered = listResponse.data
                 .filter(filterByCwd)
                 .map(mapThreadToSession);
-            if (filtered.length > 0 || isAbsolutePathLike(requestedCwd)) {
+            if (filtered.length > 0 || appServerCwds) {
                 sessions = filtered;
             } else {
-                logger.log("Ignoring non-absolute cwd filter for session/list", {cwd: requestedCwd});
+                logger.log("Ignoring non-absolute cwd filters for session/list", {cwds: requestedCwds});
             }
         }
 

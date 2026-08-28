@@ -94,7 +94,7 @@ describe("CodexACPAgent - list sessions", () => {
             limit: 100,
             sortKey: "updated_at",
             sortDirection: "desc",
-            cwd: "/repo/project",
+            cwd: ["/repo/project"],
             sourceKinds: [
                 "cli",
                 "vscode",
@@ -106,6 +106,74 @@ describe("CodexACPAgent - list sessions", () => {
         await expect(JSON.stringify(response, null, 2)).toMatchFileSnapshot(
             "data/list-sessions.json"
         );
+    });
+
+    it("passes cwd and additional roots as an app-server cwd array", async () => {
+        const fixture = createCodexMockTestFixture();
+        const codexAcpAgent = fixture.getCodexAcpAgent();
+        const codexAcpClient = fixture.getCodexAcpClient();
+        const codexAppServerClient = fixture.getCodexAppServerClient();
+
+        codexAcpClient.authRequired = vi.fn().mockResolvedValue(false);
+
+        const projectThread: Thread = {
+            id: "sess-project",
+            sessionId: "sess-project",
+            parentThreadId: null,
+            threadSource: null,
+            forkedFromId: null,
+            preview: "Project session",
+            ephemeral: false,
+            modelProvider: "openai",
+            originator: null,
+            model: null,
+            reasoningEffort: null,
+            createdAt: 100,
+            updatedAt: 200,
+            recencyAt: null,
+            status: { type: "idle" },
+            path: null,
+            cwd: "/repo/project",
+            cliVersion: "0.0.0",
+            section: null,
+            sectionEnteredAt: null,
+            projectId: null,
+            historyMode: "legacy",
+            source: "cli",
+            agentNickname: null,
+            agentRole: null,
+            gitInfo: null,
+            name: null,
+            turns: [],
+        };
+        const additionalRootThread: Thread = {
+            ...projectThread,
+            id: "sess-additional-root",
+            sessionId: "sess-additional-root",
+            preview: "Additional root session",
+            cwd: "/repo/other",
+        };
+
+        codexAppServerClient.threadList = vi.fn().mockResolvedValue({
+            data: [projectThread, additionalRootThread],
+            nextCursor: null,
+        });
+
+        const response = await codexAcpAgent.listSessions({
+            cwd: "/repo/project",
+            cursor: null,
+            _meta: {
+                additionalRoots: [" /repo/other ", "/repo/project", 7],
+            },
+        });
+
+        expect(codexAppServerClient.threadList).toHaveBeenCalledWith(expect.objectContaining({
+            cwd: ["/repo/project", "/repo/other"],
+        }));
+        expect(response.sessions.map(session => session.sessionId)).toEqual([
+            "sess-project",
+            "sess-additional-root",
+        ]);
     });
 
     it("does not run global diagnostics for an empty cwd-scoped list", async () => {
@@ -200,7 +268,7 @@ describe("CodexACPAgent - list sessions", () => {
         expect(basenameResponse.sessions.map(session => session.sessionId)).toEqual(["sess-win"]);
         expect(codexAppServerClient.threadList).toHaveBeenNthCalledWith(
             1,
-            expect.objectContaining({cwd: "d:/workspace/sample-project"}),
+            expect.objectContaining({cwd: ["d:/workspace/sample-project"]}),
         );
         expect(codexAppServerClient.threadList).toHaveBeenNthCalledWith(
             2,
