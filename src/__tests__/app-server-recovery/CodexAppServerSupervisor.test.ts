@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import {describe, expect, it, vi} from "vitest";
+import {describe, expect, it, onTestFinished, vi} from "vitest";
 import {startCodexConnection} from "../../CodexJsonRpcConnection";
 import {CodexAppServerSupervisor} from "../../app-server-recovery/CodexAppServerSupervisor";
 import {describeExit} from "../../app-server-recovery/AppServerExit";
@@ -39,6 +39,7 @@ describe("CodexAppServerSupervisor", () => {
 
     it.skipIf(process.platform === "win32")("delivers a notification written right before the exit, then disposes", async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-dying-"));
+        onTestFinished(() => fs.rmSync(dir, {recursive: true, force: true}));
         const script = path.join(dir, "codex");
         fs.writeFileSync(script, `#!/usr/bin/env node
 process.stdout.write(JSON.stringify({method: "turn/completed", params: {threadId: "t", turn: {id: "u"}}}) + "\\n", () => process.exit(1));
@@ -60,11 +61,11 @@ process.stdout.write(JSON.stringify({method: "turn/completed", params: {threadId
         expect(exit.code).toBe(1);
         expect(received).toEqual(["turn/completed"]);
         expect(disposedAfter).toBe(1);
-        fs.rmSync(dir, {recursive: true, force: true});
     }, 15_000);
 
     it.skipIf(process.platform === "win32")("delivers a burst of output written before the exit, up to its last message", async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-burst-"));
+        onTestFinished(() => fs.rmSync(dir, {recursive: true, force: true}));
         const script = path.join(dir, "codex");
         fs.writeFileSync(script, `#!/usr/bin/env node
 let out = "";
@@ -90,11 +91,11 @@ process.stdout.write(out, () => process.exit(1));
 
         expect(deltas).toBe(10000);
         expect(completedBeforeDispose).toBe(true);
-        fs.rmSync(dir, {recursive: true, force: true});
     }, 30_000);
 
     it.skipIf(process.platform === "win32")("waits for a backlog that takes longer to handle than the close grace time", async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-backlog-"));
+        onTestFinished(() => fs.rmSync(dir, {recursive: true, force: true}));
         const script = path.join(dir, "codex");
         fs.writeFileSync(script, `#!/usr/bin/env node
 let out = "";
@@ -116,7 +117,6 @@ process.stdout.write(out, () => process.exit(1));
         await supervisor.current.exited;
 
         expect(completed).toBe(true);
-        fs.rmSync(dir, {recursive: true, force: true});
     }, 30_000);
 
     it("disposes after the close grace time when a grandchild keeps the pipes open", async () => {

@@ -201,14 +201,44 @@ export function createTestFixture(): TestFixture {
         ...process.env,
         CODEX_HOME: codexHome,
     });
-    codexConnection.process.on("exit", () => {
-        removeDirectoryWithRetry(codexHome);
-    });
+    stopCodexAfterTest(codexConnection, codexHome);
 
     return createBaseTestFixture({
         connection: codexConnection.connection,
         getExitCode: () => codexConnection.process.exitCode
     });
+}
+
+const runningCodexProcesses: {process: CodexConnection["process"], directories: string[]}[] = [];
+
+/**
+ * Stops the Codex process after the current test and removes its directories. Without it the process lives until the
+ * worker exits, and its directories stay behind.
+ */
+export function stopCodexAfterTest(connection: CodexConnection, ...directories: string[]): void {
+    runningCodexProcesses.push({process: connection.process, directories});
+}
+
+// Registered once per test file that imports this module. Hooks run in reverse order, so this one runs after the
+// `afterEach` hooks of the test file.
+afterEach(async () => {
+    const stopped = runningCodexProcesses.splice(0);
+    await Promise.all(stopped.map(({process}) => stopProcess(process)));
+    stopped.flatMap(({directories}) => directories).forEach(removeDirectoryWithRetry);
+});
+
+async function stopProcess(child: CodexConnection["process"]): Promise<void> {
+    if (child.exitCode !== null || child.signalCode !== null) {
+        return;
+    }
+    const exited = new Promise<void>(resolve => child.once("exit", () => resolve()));
+    child.stdin.end();
+    child.kill("SIGTERM");
+    const timeout = new Promise<"timeout">(resolve => setTimeout(() => resolve("timeout"), 3_000).unref());
+    if (await Promise.race([exited, timeout]) === "timeout") {
+        child.kill("SIGKILL");
+        await exited;
+    }
 }
 
 function createTestCodexHome(): string {

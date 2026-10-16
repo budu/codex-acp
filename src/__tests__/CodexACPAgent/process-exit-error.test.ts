@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, onTestFinished } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -12,7 +12,9 @@ import { createMockConnections } from './test-utils';
 
 describe('CodexACPAgent - process exit error', () => {
     it.skipIf(process.platform === 'win32')('includes the crashed process stderr', async () => {
-        const fakeCodex = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'codex-bad-')), 'codex');
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-bad-'));
+        onTestFinished(() => fs.rmSync(dir, { recursive: true, force: true }));
+        const fakeCodex = path.join(dir, 'codex');
         fs.writeFileSync(fakeCodex, "#!/bin/sh\necho 'codex: failed to launch' >&2\nexit 1\n");
         fs.chmodSync(fakeCodex, 0o755);
 

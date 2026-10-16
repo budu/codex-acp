@@ -869,8 +869,8 @@ describe("_session/list/subscribe", () => {
 
     it("covers the canonical path of a cwd outside a Git checkout", async () => {
         const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "codex-acp-scope-")));
+        const link = `${dir}-link`;
         try {
-            const link = `${dir}-link`;
             fs.symlinkSync(dir, link);
             vi.useFakeTimers();
             const {fixture, agent, appServer} = await createAgent("sessionIndex");
@@ -882,8 +882,8 @@ describe("_session/list/subscribe", () => {
 
             expect(listChanges(fixture).flatMap(changes => changes.sessions.map((row: acp.SessionInfo) => row.cwd))).toEqual([dir]);
             agent.sessionIndex.dispose();
-            fs.rmSync(link);
         } finally {
+            if (fs.existsSync(link)) fs.unlinkSync(link);
             fs.rmSync(dir, {recursive: true, force: true});
         }
     });
